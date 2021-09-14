@@ -29,7 +29,7 @@ USE WideWorldImporters
 Вывести ИД сотрудника и его полное имя. 
 Продажи смотреть в таблице Sales.Invoices.
 */
-SELECT ppl.PersonId[ID], ppl.FullName[Name] 		
+SELECT Distinct ppl.PersonId[ID], ppl.FullName[Name] 		
 FROM Application.People ppl
 WHERE  ppl.IsSalesperson=1 AND
 ppl.PersonID NOT IN
@@ -37,9 +37,6 @@ ppl.PersonID NOT IN
 SELECT SalespersonPersonID FROM Sales.Invoices
 WHERE Sales.Invoices.InvoiceDate = '2015-07-04'
 )
-
-	
-
 /*
 2. Выберите товары с минимальной ценой (подзапросом). Сделайте два варианта подзапроса. 
 Вывести: ИД товара, наименование товара, цена.
@@ -54,7 +51,6 @@ WHERE UnitPrice = (Select MIN(UnitPrice) FROM Warehouse.StockItems)
 из Sales.CustomerTransactions. 
 Представьте несколько способов (в том числе с CTE). 
 */
-USE WideWorldImporters
 
 SELECT DISTINCT cst.CustomerID ,cst.CustomerName, cst.DeliveryAddressLine1 FROM Sales.Customers cst
 WHERE cst.CustomerID  IN  (
@@ -64,7 +60,6 @@ ORDER BY tr.TransactionAmount DESC)
 
 
 -------CTE
-USE WideWorldImporters
 ;WITH TopCustCTE (CustomerId) AS 
 (
 	SELECT  TOP(5) ct.CustomerID [ID]   FROM Sales.CustomerTransactions ct
@@ -80,23 +75,26 @@ JOIN TopCustCTE tCTE ON cst.CustomerID = tCTE.CustomerId;
 входящие в тройку самых дорогих товаров, а также имя сотрудника, 
 который осуществлял упаковку заказов (PackedByPersonID).
 */
-WITH MostExpensiveItems AS(
-SELECT TOP(3) InvoiceID FROM Sales.InvoiceLines
-ORDER BY UnitPrice DESC
+WITH MostExpensiveItems AS
+(
+SELECT Distinct TOP (3)
+il.UnitPrice,il.InvoiceID
+FROM Sales.InvoiceLines il
+Order by il.UnitPrice desc
 ),
-BayersExpensivItems AS
+BayersIDExpensivItemsAndPackagesID AS
 (
-	SELECT CustomerID FROM Sales.Invoices inv
-	WHERE inv.InvoiceID IN ( SELECT * FROM MostExpensiveItems
- Order by inv.CustomerID))
-
-
-Select cty.CityID, cty.CityName FROM Application.Cities cty
-WHERE cty.CityID IN 
+	SELECT Distinct inv.CustomerID,inv.PackedByPersonID FROM Sales.Invoices inv
+	WHERE inv.InvoiceID IN ( SELECT meit.InvoiceID FROM MostExpensiveItems meit)
+),
+CitiesIDAndPackagesName As 
 (
- SELECT 
+  Select Distinct ctys.CityID,ctys.CityName,ppl.FullName From Application.Cities ctys,Application.People ppl
+  Inner Join BayersIDExpensivItemsAndPackagesID bp ON bp.PackedByPersonID = ppl.PersonID
+  Inner Join Sales.Customers cust On bp.CustomerID=cust.CustomerID
 )
-;
+Select  * from CitiesIDAndPackagesName;
+
 
 
 
@@ -136,5 +134,27 @@ FROM Sales.Invoices
 ORDER BY TotalSumm DESC
 
 -- --
-
-TODO: напишите здесь свое решение
+SELECT 
+	Invoices.InvoiceID, 
+	Invoices.InvoiceDate,
+	(SELECT People.FullName
+		FROM Application.People
+		WHERE People.PersonID = Invoices.SalespersonPersonID
+	) AS SalesPersonName,
+	SalesTotals.TotalSumm AS TotalSummByInvoice, 
+	(SELECT SUM(OrderLines.PickedQuantity*OrderLines.UnitPrice)
+		FROM Sales.OrderLines
+		WHERE OrderLines.OrderId = (SELECT Orders.OrderId 
+			FROM Sales.Orders
+			WHERE Orders.PickingCompletedWhen IS NOT NULL	
+				AND Orders.OrderId = Invoices.OrderId)	
+	) AS TotalSummForPickedItems
+FROM Sales.Invoices 
+	JOIN
+	(SELECT InvoiceId, SUM(Quantity*UnitPrice) AS TotalSumm
+	FROM Sales.InvoiceLines
+	GROUP BY InvoiceId
+	HAVING SUM(Quantity*UnitPrice) > 27000) AS SalesTotals
+		ON Invoices.InvoiceID = SalesTotals.InvoiceID
+ORDER BY TotalSumm DESC
+--
