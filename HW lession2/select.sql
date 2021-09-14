@@ -68,6 +68,20 @@ where Ord.PurchaseOrderID IS NULL;
 */
 
 --TODO: напишите здесь свое решение
+SELECT o.OrderID[ID Order],CONVERT(char(10),o.OrderDate,104) [Date],
+	   DATENAME(MONTH, o.OrderDate) [Month],
+	   DATEPART(q,o.OrderDate) [Quarter],
+			CASE	
+			WHEN MONTH(o.OrderDate) BETWEEN 1 AND 4 then '1'
+			WHEN MONTH(o.OrderDate) BETWEEN 5 AND 8 then '2'
+			ELSE '3'
+			END  AS PartYear,
+		cust.CustomerName [Customer Name]
+from Sales.Orders as o
+join Sales.Customers as cust ON o.CustomerID=cust.CustomerID
+join Sales.OrderLines as ordl ON o.OrderID=ordl.OrderID
+where (ordl.UnitPrice>100 or ordl.Quantity>20) AND ordl.PickingCompletedWhen is not null
+order by [Quarter],PartYear ,[Date]
 
 
 
@@ -179,13 +193,15 @@ order by YEAR(inv.InvoiceDate),MONTH(inv.InvoiceDate)
 
 Продажи смотреть в таблице Sales.Invoices и связанных таблицах.
 */
+SELECT	 YEAR(inv.InvoiceDate) AS [Year],MONTH(inv.InvoiceDate) AS [Month],items.StockItemName [Name Item]
+		,SUM(inls.Quantity * inls.UnitPrice)  [Total Sales],MIN(inv.InvoiceDate)  [First Sale],SUM(inls.Quantity)  [QTY]
+FROM Sales.InvoiceLines inls
+JOIN Sales.Invoices  [inv] ON inls.InvoiceID = inv.InvoiceID
+JOIN Warehouse.StockItems [items] ON inls.StockItemID = items.StockItemID
+GROUP BY  YEAR(inv.InvoiceDate)
+		 ,MONTH(inv.InvoiceDate)
+		 ,items.StockItemName
+HAVING SUM(inls.Quantity) < 50
+ORDER BY YEAR(inv.InvoiceDate),
+		 MONTH(inv.InvoiceDate);
 
---TODO: напишите здесь свое решение
-
--- ---------------------------------------------------------------------------
--- Опционально
--- ---------------------------------------------------------------------------
-/*
-Написать запросы 8-9 так, чтобы если в каком-то месяце не было продаж,
-то этот месяц также отображался бы в результатах, но там были нули.
-*/
