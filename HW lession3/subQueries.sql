@@ -29,31 +29,76 @@ USE WideWorldImporters
 Вывести ИД сотрудника и его полное имя. 
 Продажи смотреть в таблице Sales.Invoices.
 */
+SELECT ppl.PersonId[ID], ppl.FullName[Name] 		
+FROM Application.People ppl
+WHERE  ppl.IsSalesperson=1 AND
+ppl.PersonID NOT IN
+(
+SELECT SalespersonPersonID FROM Sales.Invoices
+WHERE Sales.Invoices.InvoiceDate = '2015-07-04'
+)
 
-TODO: напишите здесь свое решение
+	
 
 /*
 2. Выберите товары с минимальной ценой (подзапросом). Сделайте два варианта подзапроса. 
 Вывести: ИД товара, наименование товара, цена.
 */
-
-TODO: напишите здесь свое решение
+USE WideWorldImporters
+SELECT itms.StockItemID [ID],itms.StockItemName,itms.UnitPrice
+FROM Warehouse.StockItems itms 
+WHERE UnitPrice = (Select MIN(UnitPrice) FROM Warehouse.StockItems)
 
 /*
 3. Выберите информацию по клиентам, которые перевели компании пять максимальных платежей 
 из Sales.CustomerTransactions. 
 Представьте несколько способов (в том числе с CTE). 
 */
+USE WideWorldImporters
 
-TODO: напишите здесь свое решение
+SELECT DISTINCT cst.CustomerID ,cst.CustomerName, cst.DeliveryAddressLine1 FROM Sales.Customers cst
+WHERE cst.CustomerID  IN  (
+SELECT  TOP(5) tr.CustomerID 
+FROM Sales.CustomerTransactions tr
+ORDER BY tr.TransactionAmount DESC)
+
+
+-------CTE
+USE WideWorldImporters
+;WITH TopCustCTE (CustomerId) AS 
+(
+	SELECT  TOP(5) ct.CustomerID [ID]   FROM Sales.CustomerTransactions ct
+	ORDER BY ct.TransactionAmount DESC
+)
+SELECT DISTINCT cst.CustomerID ,cst.CustomerName, cst.DeliveryAddressLine1 FROM Sales.Customers cst
+JOIN TopCustCTE tCTE ON cst.CustomerID = tCTE.CustomerId;
+
+
 
 /*
 4. Выберите города (ид и название), в которые были доставлены товары, 
 входящие в тройку самых дорогих товаров, а также имя сотрудника, 
 который осуществлял упаковку заказов (PackedByPersonID).
 */
+WITH MostExpensiveItems AS(
+SELECT TOP(3) InvoiceID FROM Sales.InvoiceLines
+ORDER BY UnitPrice DESC
+),
+BayersExpensivItems AS
+(
+	SELECT CustomerID FROM Sales.Invoices inv
+	WHERE inv.InvoiceID IN ( SELECT * FROM MostExpensiveItems
+ Order by inv.CustomerID))
 
-TODO: напишите здесь свое решение
+
+Select cty.CityID, cty.CityName FROM Application.Cities cty
+WHERE cty.CityID IN 
+(
+ SELECT 
+)
+;
+
+
 
 -- ---------------------------------------------------------------------------
 -- Опциональное задание
