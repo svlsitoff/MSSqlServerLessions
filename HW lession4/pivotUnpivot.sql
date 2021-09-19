@@ -38,13 +38,39 @@ InvoiceMonth | Peeples Valley, AZ | Medicine Lodge, KS | Gasport, NY | Sylvanite
 01.02.2013   |      7             |        3           |      4      |      2        |     1
 -------------+--------------------+--------------------+-------------+--------------+------------
 */
-
-напишите здесь свое решение
+USE WideWorldImporters;
+--CTE
+WITH cust AS
+(
+	SELECT
+		CustomerID,
+		SUBSTRING(CustomerName, CHARINDEX('(', CustomerName) + 1,
+		CHARINDEX(')', CustomerName) - CHARINDEX('(', CustomerName) - 1) ShortName
+	FROM Sales.Customers
+	WHERE
+		CustomerID between 2 and 6
+)
+SELECT
+	CONVERT(varchar(10), invMonth, 104) as InvoiceMonth
+	, [Peeples Valley, AZ], [Medicine Lodge, KS], [Gasport, NY], [Sylvanite, MT], [Jessie, ND]
+FROM
+(
+	SELECT
+		DATEFROMPARTS(YEAR(i.InvoiceDate),MONTH(i.InvoiceDate),1) AS invMonth
+		, c.ShortName
+		, i.InvoiceID
+	FROM Sales.Invoices i
+		JOIN cust c ON i.CustomerID = c.CustomerID
+) AS src
+PIVOT(COUNT(InvoiceID) FOR ShortName IN 
+	([Sylvanite, MT], [Peeples Valley, AZ], [Medicine Lodge, KS], [Gasport, NY], [Jessie, ND])
+) AS p
+ORDER BY
+	invMonth;
 
 /*
 2. Для всех клиентов с именем, в котором есть "Tailspin Toys"
 вывести все адреса, которые есть в таблице, в одной колонке.
-
 Пример результата:
 ----------------------------+--------------------
 CustomerName                | AddressLine
@@ -55,14 +81,26 @@ Tailspin Toys (Head Office) | PO Box 8975
 Tailspin Toys (Head Office) | Ribeiroville
 ----------------------------+--------------------
 */
+USE WideWorldImporters;
 
-напишите здесь свое решение
+SELECT
+	CustomerName , AddressLine
+FROM
+(
+	SELECT
+		cust.CustomerName AS CustomerName, cust.DeliveryAddressLine1 [delAddr1]
+		, cust.DeliveryAddressLine2  [delAddr2], cust.PostalAddressLine1 [pAddr1]
+		, cust.PostalAddressLine2 [pAddr2]
+	FROM Sales.Customers cust
+	WHERE
+		CustomerName LIKE '%Tailspin Toys%'
+)src
+UNPIVOT (AddressLine FOR addr IN (delAddr1, delAddr2, pAddr1, pAddr2)) AS res;
 
 /*
 3. В таблице стран (Application.Countries) есть поля с цифровым кодом страны и с буквенным.
 Сделайте выборку ИД страны, названия и ее кода так, 
 чтобы в поле с кодом был либо цифровой либо буквенный код.
-
 Пример результата:
 --------------------------------
 CountryId | CountryName | Code
@@ -73,12 +111,45 @@ CountryId | CountryName | Code
 3         | Albania     | 8
 ----------+-------------+-------
 */
-
-напишите здесь свое решение
+USE WideWorldImporters;
+SELECT
+	CountryID, CountryName, Code
+FROM
+(
+	SELECT
+		CountryID, 
+		CountryName, 
+		IsoAlpha3Code,
+		CAST(IsoNumericCode as nvarchar(3)) AS IsoNumericCode
+	FROM Application.Countries
+)src
+UNPIVOT (Code FOR someCode IN (IsoAlpha3Code, IsoNumericCode)) AS rslt;
 
 /*
 4. Выберите по каждому клиенту два самых дорогих товара, которые он покупал.
 В результатах должно быть ид клиета, его название, ид товара, цена, дата покупки.
 */
 
-напишите здесь свое решение
+SELECT
+	cust.CustomerID[ID],
+	cust.CustomerName[Name],
+	items.StockItemID,
+	items.UnitPrice,
+	items.OrderDate
+FROM Sales.Customers cust
+	CROSS APPLY
+	(
+		SELECT
+			ol.StockItemID
+			, ol.UnitPrice
+			, orders.OrderDate
+			, DENSE_RANK() OVER (PARTITION BY o.CustomerID ORDER BY UnitPrice DESC) AS temp
+		FROM
+			Sales.Orders orders
+			JOIN Sales.OrderLines ol ON orders.OrderID = ol.OrderID
+		WHERE
+			cust.CustomerID = cust.CustomerID
+	)items
+WHERE
+	items.temp < 3
+
