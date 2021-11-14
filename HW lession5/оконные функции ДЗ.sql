@@ -1,5 +1,3 @@
-
-
 /*
 1. Сделать расчет суммы продаж нарастающим итогом по месяцам с 2015 года 
 (в рамках одного месяца он будет одинаковый, нарастать будет в течение времени выборки).
@@ -37,11 +35,11 @@ SELECT
 		GROUP BY inv.InvoiceID, cust.CustomerName, inv.InvoiceDate
 		) temp
 JOIN (
-	SELECT CONCAT(YEAR(inv.InvoiceDate), RIGHT('00'+Convert(Varchar(2), MONTH(inv.InvoiceDate)),2), '01') dt, SUM(invl.UnitPrice) as sum_month
+	SELECT FORMAT(inv.InvoiceDate,'yyyyMM01')  dt, SUM(invl.UnitPrice) as sum_month
 	FROM Sales.Invoices inv
 	JOIN Sales.InvoiceLines invl on invl.InvoiceID = inv.InvoiceID
 	WHERE inv.InvoiceDate >= '20150101'
-	GROUP BY CONCAT(YEAR(inv.InvoiceDate), RIGHT('00'+Convert(Varchar(2), MONTH(inv.InvoiceDate)),2), '01')
+	GROUP BY  FORMAT(inv.InvoiceDate,'yyyyMM01')
 ) AS total_month on total_month.dt <= temp.InvoiceDate
 group by temp.InvoiceID, temp.CustomerName, temp.InvoiceDate,temp.sum_invoice
 order by temp.InvoiceDate
@@ -127,24 +125,19 @@ FROM Warehouse.StockItems
    В результатах должны быть ид и фамилия сотрудника, ид и название клиента, дата продажи, сумму сделки.
 */
 
-SELECT 
-	p.PersonID, p.FullName,
-	c.CustomerID, c.CustomerName,
-	MAX(i.InvoiceDate) AS InvoiceDate,
-	SUM(il.[UnitPrice]) AS sum_deal
-FROM (
-		SELECT
-			i.SalespersonPersonID,
-			MAX(i.CustomerID) as CustomerID,
-			MAX(i.InvoiceID) as InvoiceID,
-			MAX(i.InvoiceDate) as InvoiceDate
-		FROM Sales.Invoices i
-		GROUP BY i.SalespersonPersonID) i
-JOIN [Sales].[InvoiceLines] il ON il.InvoiceID = i.InvoiceID
-JOIN [Application].[People] p ON p.[PersonID] = i.SalespersonPersonID
-JOIN [Sales].[Customers] c ON c.CustomerID = i.CustomerID
-GROUP BY p.PersonID, p.FullName, c.CustomerID, c.CustomerName
-ORDER BY p.PersonID, p.FullName
+SELECT temp.PersonID, temp.FullName, temp.CustomerID, temp.CustomerName, temp.InvoiceDate, temp.InvoiceSum
+FROM 
+(
+	SELECT p.PersonID, p.FullName, c.CustomerID, c.CustomerName, i.InvoiceDate,
+	(SELECT SUM(il.Quantity*il.UnitPrice) AS InvoiceSum
+	FROM Sales.InvoiceLines il WHERE il.InvoiceID = i.InvoiceID) AS InvoiceSum,
+	ROW_NUMBER() OVER (PARTITION BY p.PersonID ORDER BY i.InvoiceID DESC) AS InvoiceRank
+	FROM  Application.People p
+	JOIN Sales.Invoices i ON  i.SalespersonPersonID = p.PersonID
+	JOIN Sales.Customers c ON c.CustomerID = i.CustomerID
+	) AS temp
+WHERE InvoiceRank = 1
+ORDER BY temp.PersonID;
 
 /*
 6. Выберите по каждому клиенту два самых дорогих товара, которые он покупал.
